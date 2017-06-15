@@ -36,10 +36,12 @@ import glob
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--iters', help="epochs (iterations)", type=int, default=6)
-parser.add_argument('--lang', help="language ('nl', 'en', 'de', 'es')", type=str, default='nl')
-parser.add_argument('--size', help="corpus size: number of json files to use", type=int, default=200)
+parser.add_argument('--path', help="path to json files containing nl or de tweets", type=str, default='nl_10/users_id')
+parser.add_argument('--path_meta', help="path to json file containing meta data", type=str, default='TwiSty-NL.json')
+parser.add_argument('--lang', help="FOR PICKLE: set language ('nl', 'en', 'de', 'es')", type=str, default='nl')
+parser.add_argument('--size', help="FOR PICKLE: number of json files to use", type=int, default=200)
 parser.add_argument('--mbti_index', help="mbti index to use (0, 1, 2, 3)", type=int, default=0)
+parser.add_argument('--iters', help="epochs (iterations)", type=int, default=6)
 args = parser.parse_args()
 
 
@@ -47,10 +49,10 @@ args = parser.parse_args()
 create_pickle = False #creates pickle after reading all json files if set to True
 
 def read_data():
-    """comment"""
-    #corpus location, temporary hardcoded(!)
-    path = 'C:/Users/Thijs/Desktop/Twisty/tweets/'+args.lang+'_'+str(args.size)+'/users_id'
-    path_meta = 'C:/Users/Thijs/Desktop/Twisty/twisty-2016-02-metadata/TwiSty-'+args.lang.upper()+'.json'
+    """Read tweets and metadata from specified paths. Pre-process and return X and y."""
+    #corpus location
+    path = args.path
+    path_meta = args.path_meta
     #initialize vars
     documents, labels = [], []
     filecount = 0
@@ -70,8 +72,6 @@ def read_data():
         with open(filename, mode="r") as dataset:
             data = json.load(dataset)
             for key, value in data['tweets'].items():
-                #print(value['text']) #debug
-                #id = data['user']['id'] #debug
                 tokens = tokenizer.tokenize(value['text'].rstrip())
                 #tokens = value['text'].strip().split()\
                 
@@ -102,7 +102,7 @@ def read_data():
     return documents, labels
 
 def read_pickle():
-    """comment"""
+    """Only for special use. Read from pickle file for faster loading."""
     #read documents and labels from earlier created pickle instead of going through dir for all json files
     print("Skipping JSON files, loading stored pickle instead...\n")
     with open('C:/Users/Thijs/Desktop/Twisty/tweets/'+args.lang+'_pickle/X_'+args.lang+'_'+str(args.size)+'.pickle', 'rb') as X:
@@ -115,11 +115,9 @@ def read_pickle():
     print("Length documents: {0}".format(len(documents))) #debug
     print("Lenght labels: {0}\n".format(len(labels))) #debug
     
-    #slice (test)
+    #slice
     length = len(documents)
     perc = 1
-    print(perc*length)
-    print(int(round(perc*length, 0)))
     documents = documents[:int(round(perc*length, 0))]
     labels = labels[:int(round(perc*length, 0))]
     assert len(documents) == len(labels)
@@ -127,13 +125,8 @@ def read_pickle():
     return documents, labels
 
 
-def identity(x):
-    """comment"""
-    return x
-
-
 def split_data(X, y):
-    """comment"""
+    """Splits data in train, dev, test."""
     train_end = int(0.60*len(X))
     dev_end = int(0.80*len(X))
     
@@ -147,7 +140,7 @@ def split_data(X, y):
 
     
 def word2index(X_train, X_dev, X_test):
-    """comment"""
+    """Function for mapping words to index."""
     w2i = defaultdict(lambda: len(w2i))
     PAD = w2i["<pad>"] # index 0 is padding
     UNK = w2i["<unk>"] # index 1 is for UNK
@@ -162,7 +155,7 @@ def word2index(X_train, X_dev, X_test):
 
 
 def transform_y(y_train, y_dev, y_test):
-    """comment"""
+    """Transform str y to int y. Show mappings."""
     #transform y_train
     le = preprocessing.LabelEncoder()
     le.fit(y_train)
@@ -188,7 +181,7 @@ def transform_y(y_train, y_dev, y_test):
 
 def main():
     #print parameters
-    print("Using language {0}, data size {1}".format(args.lang.upper(), args.size))
+    print("Using path {0}".format(args.path))
     if args.mbti_index == 0: print("Using character index {0} for MBTI (E/I)".format(args.mbti_index))
     if args.mbti_index == 1: print("Using character index {0} for MBTI (S/N)".format(args.mbti_index))
     if args.mbti_index == 2: print("Using character index {0} for MBTI (T/F)".format(args.mbti_index))
@@ -196,15 +189,12 @@ def main():
     
     #read and split data
     print("\nLoading data...")
-    X, y = read_pickle()
-    #X, y = read_data()
-    X_train, X_dev, X_test, y_train, y_dev, y_test = split_data(X, y)
-    #print("X_train instance (prior):\n{0}".format(X_train[-1])) #debug
-    #print("y_train instance (prior): {0}\n".format(y_train[-1])) #debug    
+    #X, y = read_pickle() #enable when reading from pickle
+    X, y = read_data()
+    X_train, X_dev, X_test, y_train, y_dev, y_test = split_data(X, y) 
     
     #convert words to indices
     X_train_num, X_dev_num, X_test_num, w2i, PAD = word2index(X_train, X_dev, X_test)    
-    #print("X_train_num instance:\n{0}\n".format(X_train_num[-1])) #debug
     
     #add paddings to X
     max_sentence_length = max([len(s) for s in X_train] + [len(s) for s in X_dev] + [len(s) for s in X_test])    
@@ -217,8 +207,7 @@ def main():
     num_classes = len(np.unique(y_train_binary))
     
     vocab_size = len(w2i)
-    embeds_size = 64
-    
+    embeds_size = 64    
     
     #STATISTICS
     print("\nStatistics:")
@@ -227,9 +216,7 @@ def main():
     #print("X_train_pad:\n", X_train_pad[-1]) #debug
     #print("X_test_pad:\n", X_test_pad[-1]) #debug
     
-    #input_size = len(X_train[0].toarray())
-    #print("Input size:\n", input_size)    
-    
+    #number of 0/1 labels in train, test and dev data
     print("# train 0:", np.count_nonzero(y_train_binary == 0))
     print("# train 1:", np.count_nonzero(y_train_binary == 1))
     
@@ -280,9 +267,8 @@ def main():
     print("-----------")
     
     probs = model.predict(X_test_pad)    
-    print("\nProbabilities (last 10):\n", probs[:10])
-    y_predicted = [seq.argmax() for seq in probs]
-    #print("\ny's predicted (last 20):\n", y_predicted[:20])    
+    #print("\nProbabilities (last 10):\n", probs[:10])
+    y_predicted = [seq.argmax() for seq in probs]    
     
     print("y's predicted (last 20):\n", y_predicted_classes.flatten()[:20])    
     print("y's devset (last 20):\n", y_test_binary[:20])
