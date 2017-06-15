@@ -36,7 +36,7 @@ import glob
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--path', help="path to json files containing nl or de tweets", type=str, default='nl_10/users_id')
+parser.add_argument('--path', help="path to json files containing nl or de tweets", type=str, default='nl_200/users_id')
 parser.add_argument('--path_meta', help="path to json file containing meta data", type=str, default='TwiSty-NL.json')
 parser.add_argument('--lang', help="FOR PICKLE: set language ('nl', 'en', 'de', 'es')", type=str, default='nl')
 parser.add_argument('--size', help="FOR PICKLE: number of json files to use", type=int, default=200)

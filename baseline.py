@@ -1,7 +1,8 @@
 #!usr/bin/python3
-#File: main.py
-#Date: 09-05-2017
-#Description: Baseline
+#File: baseline.py
+#Author: Thijs Horstman
+#Date: 01-06-2017
+#Description: Naive Bayes baseline for prediction MBTI dimensions for Twitter users.
 
 #---------------------------
 #Imports
@@ -28,7 +29,6 @@ from sklearn.feature_selection import chi2
 
 from nltk.tokenize import TweetTokenizer
 
-#python default imports
 from collections import defaultdict
 import pickle
 import codecs
@@ -36,16 +36,15 @@ import os
 import json
 import glob
 
-#other imports
-
-
 #---------------------------
 #Functions
 #---------------------------
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--lang', help="language ('nl', 'en', 'de', 'es')", type=str, default='nl')
-parser.add_argument('--size', help="corpus size: number of json files to use (10, 25, 100, 200, 1000)", type=int, default=200)
+parser.add_argument('--path', help="path to json files containing nl or de tweets", type=str, default='nl_200/users_id')
+parser.add_argument('--path_meta', help="path to json file containing meta data", type=str, default='TwiSty-NL.json')
+parser.add_argument('--lang', help="FOR PICKLE: set language ('nl', 'en', 'de', 'es')", type=str, default='nl')
+parser.add_argument('--size', help="FOR PICKLE: number of json files to use", type=int, default=200)
 parser.add_argument('--mbti_index', help="mbti index to use (0, 1, 2, 3)", type=int, default=0)
 args = parser.parse_args()
 
@@ -53,11 +52,14 @@ args = parser.parse_args()
 #Set parameters
 create_pickle = False
 
+#Set parameters
+create_pickle = False #creates pickle after reading all json files if set to True
+
 def read_data():
-    """comment"""
-    #corpus location, temporary hardcoded(!)
-    path = 'C:/Users/Thijs/Desktop/Twisty/tweets/'+args.lang+'_'+str(args.size)+'/users_id'
-    path_meta = 'C:/Users/Thijs/Desktop/Twisty/twisty-2016-02-metadata/TwiSty-'+args.lang.upper()+'.json'
+    """Read tweets and metadata from specified paths. Pre-process and return X and y."""
+    #corpus location
+    path = args.path
+    path_meta = args.path_meta
     #initialize vars
     documents, labels = [], []
     filecount = 0
@@ -77,14 +79,12 @@ def read_data():
         with open(filename, mode="r") as dataset:
             data = json.load(dataset)
             for key, value in data['tweets'].items():
-                #print(value['text']) #debug
-                #id = data['user']['id'] #debug
                 tokens = tokenizer.tokenize(value['text'].rstrip())
                 #tokens = value['text'].strip().split()\
                 
                 #pre-processing
                 tokens = ['URL' if tok[:7] == 'http://' or tok[:8] == 'https://' else tok for tok in tokens]
-                #tokens = ['@username' if len(tok)>1 and tok[0] == '@' else tok for tok in tokens]
+                tokens = ['@user' if len(tok)>1 and tok[0] == '@' else tok for tok in tokens]
                     
                 documents.append(tokens)
                 labels.append(mbti)
@@ -109,7 +109,7 @@ def read_data():
     return documents, labels
 
 def read_pickle():
-    """comment"""
+    """Only for special use. Read from pickle file for faster loading."""
     #read documents and labels from earlier created pickle instead of going through dir for all json files
     print("Skipping JSON files, loading stored pickle instead...\n")
     with open('C:/Users/Thijs/Desktop/Twisty/tweets/'+args.lang+'_pickle/X_'+args.lang+'_'+str(args.size)+'.pickle', 'rb') as X:
@@ -122,11 +122,9 @@ def read_pickle():
     print("Length documents: {0}".format(len(documents))) #debug
     print("Lenght labels: {0}\n".format(len(labels))) #debug
     
-    #slice (test)
+    #slice
     length = len(documents)
     perc = 1
-    print(perc*length)
-    print(int(round(perc*length, 0)))
     documents = documents[:int(round(perc*length, 0))]
     labels = labels[:int(round(perc*length, 0))]
     assert len(documents) == len(labels)
@@ -134,13 +132,13 @@ def read_pickle():
     return documents, labels
 
     
-# a dummy function that just returns its input
 def identity(x):
+    """Dummy function that just returns its input"""
     return x
 
 
 def split_data(X, y):
-    """comment"""
+    """Splits data in train, dev, test."""
     train_end = int(0.60*len(X))
     dev_end = int(0.80*len(X))
     
@@ -155,7 +153,7 @@ def split_data(X, y):
 
 def main():
     #print parameters
-    print("Using language {0}, data size {1}".format(args.lang.upper(), args.size))
+    print("Using path {0}".format(args.path))
     if args.mbti_index == 0: print("Using character index {0} for MBTI (E/I)".format(args.mbti_index))
     if args.mbti_index == 1: print("Using character index {0} for MBTI (S/N)".format(args.mbti_index))
     if args.mbti_index == 2: print("Using character index {0} for MBTI (T/F)".format(args.mbti_index))
@@ -163,7 +161,7 @@ def main():
     
     #read and split data
     print("\nLoading data...")
-    #X, y = read_pickle()
+    #X, y = read_pickle() #enable when reading from pickle
     X, y = read_data()
     X_train, X_dev, X_test, y_train, y_dev, y_test = split_data(X, y)
 
@@ -193,15 +191,9 @@ def main():
     print("Train model...")
     classifier.fit(X_train, y_train)
 
-    # The 25% testtokens (Xtest) are feeded into the trained model to let it predict the
-    # labels. Predicted labels are saved in Yguess.
     print("Evaluate model...")
     y_guess = classifier.predict(X_test)
-    #print(Yguess[:10])
-    #print(Xtest[:10])
 
-    # The known labels (Ytest) are compared with the labels predicted by the model in the previous
-    # step (Yguess). Accuracy is calculated by counting the amount of correctly predicted labels.
     print("\nOverall accuracy:", accuracy_score(y_test, y_guess))
     
     # Print classification report with p, r, f1 per class
